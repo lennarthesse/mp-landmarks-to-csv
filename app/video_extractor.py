@@ -4,6 +4,9 @@ import mediapipe as mp
 import numpy as np
 import csv
 
+import unicodedata
+import urllib.parse
+
 from mp import MP_model
 from landmark_visualization import draw_landmarks_on_image
 
@@ -109,6 +112,37 @@ def build_row(results, label: str) -> list:
     all_features.append(label)
     return all_features
 
+def normalize_name(name: str) -> str:
+    name = os.path.basename(name)
+    name = urllib.parse.unquote(name)
+    name = unicodedata.normalize("NFKC", name)
+    name = (
+        name.replace("•", "")
+            .replace(" ", "_")
+            .replace("/", "_")
+    )
+    return name.lower()
+
+def build_video_lookup(csv_path: str) -> dict:
+    lookup = {}
+
+    with open(csv_path, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+
+        for row in reader:
+            video = row.get("videos")
+            word = row.get("word")
+
+            if not (video and word):
+                continue
+
+            key = normalize_name(video)
+
+            if key not in lookup:
+                lookup[key] = word
+
+    return lookup
+
 if __name__ == "__main__":
     files = os.scandir("input")
     time = 0 # continuously running index to satisfy mediapipes need for a timestamp
@@ -122,11 +156,15 @@ if __name__ == "__main__":
     csv_header.append("sign")
     csv_writer.writerow(csv_header)
 
+    video_lookup = build_video_lookup("dataset.csv")
+
     for file in files:
         print("Processing " + file.name + "...")
 
-        # SOMEHOW FIND THE LABEL FOR THIS VIDEO
-        label = "spam"
+        label = video_lookup.get(normalize_name(file.name))
+        if label is None:
+            print("Couldn't find a label for this video, skipping it...")
+            continue
 
         results = []
 
@@ -151,6 +189,6 @@ if __name__ == "__main__":
         cap.release()
         cv2.destroyAllWindows()
 
-        csv_writer.writerow(build_row(results, label))
+        csv_writer.writerow(build_row(results, label.lower()))
 
     csv_file.close()
