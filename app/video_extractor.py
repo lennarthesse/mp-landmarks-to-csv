@@ -8,6 +8,7 @@ from mp import MP_model
 from landmark_visualization import draw_landmarks_on_image
 
 NUM_LANDMARKS = 21
+STATS = ["mean", "std"]
 
 def convert_frame_to_mp_image(frame) -> mp.Image:
     # Convert frame to BGR for better recognition?
@@ -22,25 +23,27 @@ def convert_frame_to_mp_image(frame) -> mp.Image:
 def build_header() -> list:
     hands = ["l", "r"]
     coords = ["x", "y", "z"]
-    stats = ["mean", "min", "max"]
 
     header = []
 
     for hand in hands:
         for landmark_idx in range(NUM_LANDMARKS):
             for coord in coords:
-                for stat in stats:
+                for stat in STATS:
                     header.append(f"{hand}_{coord}_{landmark_idx}_{stat}")
 
     return header
 
 def build_row(results, label: str) -> list:
     """
+    :param results: The collected results from a detection run on a video.
     :type results: list[HandLandmarkerResult]
-    :param results: The aggregated results from a detection run on a video.
 
-    :type label: str
     :param label: The corresponding label for the data in this video.
+    :type label: str
+
+    :return: A list with aggregated data for each coordinate of each landmark.
+    :rtype: list[Any]
     """
 
     LEFT_SLOT = 0
@@ -48,7 +51,7 @@ def build_row(results, label: str) -> list:
     FILL_VALUE = -11111111
 
     slots = [[], []]
-    
+
     for result in results:
         # skip empty results
         if len(result.hand_world_landmarks) == 0:
@@ -73,7 +76,7 @@ def build_row(results, label: str) -> list:
         # collect results of left hands
         if assignment[LEFT_SLOT] is not None:
             slots[LEFT_SLOT].append(assignment[LEFT_SLOT])
-        
+
         # collect results of right hands
         if assignment[RIGHT_SLOT] is not None:
             slots[RIGHT_SLOT].append(assignment[RIGHT_SLOT])
@@ -83,7 +86,7 @@ def build_row(results, label: str) -> list:
     for slot in slots:
         if len(slot) == 0:
             # fill with fill value if no hand was detected in the entire video
-            all_features.extend([FILL_VALUE] * NUM_LANDMARKS * 3 * 3)
+            all_features.extend([FILL_VALUE] * NUM_LANDMARKS * 3 * len(STATS))
             continue
 
         buckets = [{"x": [], "y": [], "z": []} for _ in range(NUM_LANDMARKS)]
@@ -93,16 +96,16 @@ def build_row(results, label: str) -> list:
                 buckets[idx]["x"].append(landmark.x)
                 buckets[idx]["y"].append(landmark.y)
                 buckets[idx]["z"].append(landmark.z)
-        
+
         for bucket in buckets:
             for coord in ("x", "y", "z"):
                 values = np.array(bucket[coord])
+                # replace values.min() and .max() with values.std() for use with standard deviation. also adjust the STATS constant!
                 all_features.extend([
                     values.mean(),
-                    values.min(),
-                    values.max()
+                    values.std()
                 ])
-        
+
     all_features.append(label)
     return all_features
 
@@ -142,7 +145,7 @@ if __name__ == "__main__":
 
             #cv2.imshow("Verification", annotated_image)
             #cv2.waitKey(1) # opens the window and displays it for the given number of miliseconds
-            
+
             time += 1
 
         cap.release()
