@@ -1,12 +1,13 @@
 import cv2
 import os
 import mediapipe as mp
-
+import numpy as np
 import csv
-from collections import deque
 
 from mp import MP_model
 from landmark_visualization import draw_landmarks_on_image
+
+NUM_LANDMARKS = 21
 
 def convert_frame_to_mp_image(frame) -> mp.Image:
     # Convert frame to BGR for better recognition?
@@ -18,56 +19,103 @@ def convert_frame_to_mp_image(frame) -> mp.Image:
         data=frame_bgr
     )
 
-def build_frame_row(detection_result):
+def build_header() -> list:
+    hands = ["l", "r"]
+    coords = ["x", "y", "z"]
+    stats = ["mean", "min", "max"]
+
+    header = []
+
+    for hand in hands:
+        for landmark_idx in range(NUM_LANDMARKS):
+            for coord in coords:
+                for stat in stats:
+                    header.append(f"{hand}_{coord}_{landmark_idx}_{stat}")
+
+    return header
+
+def build_row(results, label: str) -> list:
+    """
+    :type results: list[HandLandmarkerResult]
+    :param results: The aggregated results from a detection run on a video.
+
+    :type label: str
+    :param label: The corresponding label for the data in this video.
+    """
 
     LEFT_SLOT = 0
     RIGHT_SLOT = 1
-    FILL_VALUE = 0.0
+    FILL_VALUE = -11111111
 
-    slots = [None, None]
+    slots = [[], []]
+    
+    for result in results:
+        # skip empty results
+        if len(result.hand_world_landmarks) == 0:
+            continue
 
-    if len(detection_result.hand_landmarks) == 0:
-        return None
+        # assign landmarks in result to either left or right hand
+        assignment = [None, None] 
+        for i in range(len(result.hand_world_landmarks)):
+            landmarks = result.hand_world_landmarks[i]
+            handedness = result.handedness[i][0].category_name
 
-    for i in range(len(detection_result.hand_landmarks)):
-        landmarks = detection_result.hand_landmarks[i]
-        handedness = detection_result.handedness[i][0].category_name
+            # decide preferred slot
+            preferred_slot = LEFT_SLOT if handedness.lower() == "left" else RIGHT_SLOT
 
-        # Decide preferred slot
-        preferred_slot = LEFT_SLOT if handedness.lower() == "left" else RIGHT_SLOT
+            if assignment[preferred_slot] is None:
+                assignment[preferred_slot] = landmarks
+            else:
+                other_slot = RIGHT_SLOT if preferred_slot == LEFT_SLOT else LEFT_SLOT
+                if assignment[other_slot] is None:
+                    assignment[other_slot] = landmarks
 
-        if slots[preferred_slot] is None:
-            slots[preferred_slot] = landmarks
-        else:
-            other_slot = RIGHT_SLOT if preferred_slot == LEFT_SLOT else LEFT_SLOT
-            if slots[other_slot] is None:
-                slots[other_slot] = landmarks
+        # collect results of left hands
+        if assignment[LEFT_SLOT] is not None:
+            slots[LEFT_SLOT].append(assignment[LEFT_SLOT])
+        
+        # collect results of right hands
+        if assignment[RIGHT_SLOT] is not None:
+            slots[RIGHT_SLOT].append(assignment[RIGHT_SLOT])
 
-    # Build CSV row
-    row = []
-    for landmarks in slots:
-        if landmarks is not None:
-            for landmark in landmarks: # type: ignore
-                row.extend([landmark.x, landmark.y, landmark.z])
-        else:
-            # Fill missing hand
-            row.extend([FILL_VALUE] * (21 * 3))
+    # aggregate mean, min, max for each coordinate
+    all_features = []
+    for slot in slots:
+        if len(slot) == 0:
+            # fill with fill value if no hand was detected in the entire video
+            all_features.extend([FILL_VALUE] * NUM_LANDMARKS * 3 * 3)
+            continue
 
-    return row
+        buckets = [{"x": [], "y": [], "z": []} for _ in range(NUM_LANDMARKS)]
 
-N_FRAMES = 25
+        for landmarks in slot:
+            for idx, landmark in enumerate(landmarks):
+                buckets[idx]["x"].append(landmark.x)
+                buckets[idx]["y"].append(landmark.y)
+                buckets[idx]["z"].append(landmark.z)
+        
+        for bucket in buckets:
+            for coord in ("x", "y", "z"):
+                values = np.array(bucket[coord])
+                all_features.extend([
+                    values.mean(),
+                    values.min(),
+                    values.max()
+                ])
+        
+    all_features.append(label)
+    return all_features
 
 if __name__ == "__main__":
     files = os.scandir("input")
     time = 0 # continuously running index to satisfy mediapipes need for a timestamp
-    deq = deque(maxlen=N_FRAMES) # holds up to 25 frame_rows which correspond to the numbers in an actual csv row
 
     model = MP_model("hand_landmarker.task")
     model.init_video()
 
     csv_file = open("table.csv", "w", newline="", encoding="utf-8")
     csv_writer = csv.writer(csv_file)
-    csv_header = [f"{t}:{hand}_{axis}_{i}" for t in range(1-N_FRAMES, 1) for hand in ("left", "right") for i in range(21) for axis in ("x", "y", "z")]
+    csv_header = build_header()
     csv_header.append("sign")
     csv_writer.writerow(csv_header)
 
@@ -76,6 +124,8 @@ if __name__ == "__main__":
 
         # SOMEHOW FIND THE LABEL FOR THIS VIDEO
         label = "spam"
+
+        results = []
 
         # Loop through each frame in the video
         cap = cv2.VideoCapture(file.path)
@@ -86,29 +136,18 @@ if __name__ == "__main__":
 
             mp_image = convert_frame_to_mp_image(frame)
             detection_result = model.landmarker.detect_for_video(mp_image, time)
+            results.append(detection_result)
             # draw result on the original frame (consider using mp_image.numpy_view() for viewing the image mediapipe actually works with)
             annotated_image = draw_landmarks_on_image(frame, detection_result)
-            frame_row = build_frame_row(detection_result)
 
-            if frame_row is not None:
-                deq.append(frame_row)
-
-            if len(deq) == N_FRAMES:
-                combined_frame_rows = [entry for frame_rows in deq for entry in frame_rows]
-                print(len(combined_frame_rows))
-                combined_frame_rows.append(label)
-                csv_writer.writerow(combined_frame_rows)
-
-            cv2.imshow("Verification", annotated_image)
-            cv2.waitKey(1) # opens the window and displays it for the given number of miliseconds
+            #cv2.imshow("Verification", annotated_image)
+            #cv2.waitKey(1) # opens the window and displays it for the given number of miliseconds
             
             time += 1
 
-        # clear the deq to start collecting frames from the beginning again for new signs
-        # ATTENTION: this means that signs that are shorter than N_FRAMES dont get recognized at all
-        deq.clear()
-
         cap.release()
         cv2.destroyAllWindows()
-        
+
+        csv_writer.writerow(build_row(results, label))
+
     csv_file.close()
