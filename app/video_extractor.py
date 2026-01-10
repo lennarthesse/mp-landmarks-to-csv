@@ -3,6 +3,7 @@ import os
 import mediapipe as mp
 import numpy as np
 import csv
+import glob
 
 import unicodedata
 import urllib.parse
@@ -144,7 +145,11 @@ def build_video_lookup(csv_path: str) -> dict:
     return lookup
 
 if __name__ == "__main__":
-    files = os.scandir("input") 
+    INPUT_DIR = "input"
+
+    files = os.scandir(INPUT_DIR) 
+    file_count = len(glob.glob(INPUT_DIR + "/*.mp4"))
+    file_idx = 1
     time = 0 # continuously running index to satisfy mediapipes need for a timestamp
 
     model = MP_model("hand_landmarker.task")
@@ -165,7 +170,8 @@ if __name__ == "__main__":
             print(f"{file.name} is not a video, skipping it.")
             continue
 
-        print(f"Processing {file.name}...")
+        print(f"Processing file {file_idx} of {file_count} ({file.name})...")
+        file_idx += 1
 
         # skip unlabeled videos
         label = video_lookup.get(normalize_name(file.name))
