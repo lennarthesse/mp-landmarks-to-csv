@@ -1,5 +1,8 @@
-# ignore standard output directory
-output/
+# ignore input and validation image/video files
+app/output/*.jpg
+app/output/*.mp4
+app/input/*.mp4
+app/input/*.jpg
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

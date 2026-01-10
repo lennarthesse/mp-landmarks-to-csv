@@ -181,8 +181,8 @@ if __name__ == "__main__":
             # draw result on the original frame (consider using mp_image.numpy_view() for viewing the image mediapipe actually works with)
             annotated_image = draw_landmarks_on_image(frame, detection_result)
 
-            #cv2.imshow("Verification", annotated_image)
-            #cv2.waitKey(1) # opens the window and displays it for the given number of miliseconds
+            cv2.imshow("Verification", annotated_image)
+            cv2.waitKey(1) # opens the window and displays it for the given number of miliseconds
 
             time += 1
 
