@@ -1,7 +1,7 @@
 #import landmark_extractor
 import os
 import cv2
-import mp
+from utils import MP_model
 
 import mediapipe
 
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     for file in files:
         print(file.name)
 
-    model = mp.MP_model("hand_landmarker.task")
+    model = MP_model("hand_landmarker.task")
 
     model.init_livestream()
     

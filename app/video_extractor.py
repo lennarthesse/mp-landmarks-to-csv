@@ -7,8 +7,8 @@ import csv
 import unicodedata
 import urllib.parse
 
-from mp import MP_model
-from landmark_visualization import draw_landmarks_on_image
+from utils import MP_model
+from utils import draw_landmarks_on_image
 
 NUM_LANDMARKS = 21
 STATS = ["mean", "std"]
@@ -144,26 +144,33 @@ def build_video_lookup(csv_path: str) -> dict:
     return lookup
 
 if __name__ == "__main__":
-    files = os.scandir("input")
+    files = os.scandir("input") 
     time = 0 # continuously running index to satisfy mediapipes need for a timestamp
 
     model = MP_model("hand_landmarker.task")
     model.init_video()
 
-    csv_file = open("table.csv", "w", newline="", encoding="utf-8")
+    # Initialize CSV file and writer and write the header row 
+    csv_file = open("output/table.csv", "w", newline="", encoding="utf-8")
     csv_writer = csv.writer(csv_file)
     csv_header = build_header()
     csv_header.append("sign")
     csv_writer.writerow(csv_header)
 
-    video_lookup = build_video_lookup("dataset.csv")
+    video_lookup = build_video_lookup("input/labels.csv")
 
     for file in files:
-        print("Processing " + file.name + "...")
+        # skip directories and non-video files
+        if not (file.is_file() and file.name.endswith("mp4")):
+            print(f"{file.name} is not a video, skipping it.")
+            continue
 
+        print(f"Processing {file.name}...")
+
+        # skip unlabeled videos
         label = video_lookup.get(normalize_name(file.name))
         if label is None:
-            print("Couldn't find a label for this video, skipping it...")
+            print("Couldn't find a label for this video, skipping it.")
             continue
 
         results = []

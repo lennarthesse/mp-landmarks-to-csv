@@ -3,7 +3,7 @@ import sys
 import csv
 import cv2
 
-import landmark_visualization
+from utils import draw_landmarks_on_image
 
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -68,7 +68,7 @@ if __name__ == "__main__":
             
             # draw landmarks on image and save as control #
             # annotated_image = draw_landmarks_on_image(file, detection_result)
-            annotated_image = landmark_visualization.draw_landmarks_on_image(image.numpy_view(), detection_result)
+            annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
             
             # cv2.imwrite(os.path.join(dataset_name, sign + "_" +  str(hash(f.name)) + ".jpg"), annotated_image)
             cv2.imwrite(os.path.join(dataset_name, f.name), annotated_image)
@@ -89,12 +89,3 @@ if __name__ == "__main__":
             
     csv_file.close
     print("Done!")
-        
-
-
-
-
-
-
-
-
