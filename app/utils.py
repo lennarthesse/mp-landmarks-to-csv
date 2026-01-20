@@ -1,5 +1,4 @@
 #import cv2
-#import landmark_visualization
 
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
@@ -28,7 +27,7 @@ class MP_model:
 
         def print_result(result, output_image: mp.Image, timestamp_ms: int):
             print('hand landmarker result: {}'.format(result))
-            #annotated_image = landmark_visualization.draw_landmarks_on_image(output_image.numpy_view(), result)
+            #annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
             #cv2.imshow("imaeg", annotated_image)
             #cv2.waitKey(1)
 
@@ -60,7 +59,7 @@ class MP_model:
         image = mp.Image.create_from_file(image_path)
         result = self.landmarker.detect(image)
         print(result)
-        annotated_image = landmark_visualization.draw_landmarks_on_image(image.numpy_view(), result)
+        annotated_image = draw_landmarks_on_image(image.numpy_view(), result)
         cv2.imshow("test", annotated_image)
         cv2.waitKey()
     """

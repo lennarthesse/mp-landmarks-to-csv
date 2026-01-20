@@ -24,7 +24,20 @@ def convert_frame_to_mp_image(frame) -> mp.Image:
         data=frame_bgr
     )
 
-def build_header() -> list:
+def build_header_frame() -> list:
+    hands = ["l", "r"]
+    coords = ["x", "y", "z"]
+
+    header = []
+
+    for hand in hands:
+        for landmark_idx in range(NUM_LANDMARKS):
+            for coord in coords:
+                header.append(f"{hand}_{coord}_{landmark_idx}")
+
+    return header
+
+def build_header_mean_std() -> list:
     hands = ["l", "r"]
     coords = ["x", "y", "z"]
 
@@ -38,7 +51,22 @@ def build_header() -> list:
 
     return header
 
-def build_row(results, label: str) -> list:
+def build_row_frame(result, frame: int, video_name: str) -> list:
+    """
+    Builds a CSV row for a single frame in a video containing the extracted landmarks, the frame index in the video, and the name of the video for grouping data by videos (and thus labels).
+    
+    :param result: The MediaPipe HandLandmarkerResult containing landmark coordinates, handedness and more.
+    :type result: HandLandmarkerResult
+    :param frame: The index of the frame in the video.
+    :type frame: int
+    :param video_name: The name of the video the frame is from.
+    :type video_name: str
+    :return: A list corresponding to a row in the CSV file, containing the extracted landmarks, frame index, and associated video.
+    :rtype: list[Any]
+    """
+    return []
+
+def build_row_mean_std(results, label: str) -> list:
     """
     :param results: The collected results from a detection run on a video.
     :type results: list[HandLandmarkerResult]
@@ -167,7 +195,7 @@ if __name__ == "__main__":
     # Initialize CSV file and writer and write the header row 
     csv_file = open("output/table.csv", "w", newline="", encoding="utf-8")
     csv_writer = csv.writer(csv_file)
-    csv_header = build_header()
+    csv_header = build_header_mean_std()
     csv_header.append("sign")
     csv_writer.writerow(csv_header)
 
@@ -211,6 +239,6 @@ if __name__ == "__main__":
         cap.release()
         cv2.destroyAllWindows()
 
-        csv_writer.writerow(build_row(results, label.lower()))
+        csv_writer.writerow(build_row_mean_std(results, label.lower()))
 
     csv_file.close()
